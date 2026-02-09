@@ -44,12 +44,16 @@ def cli_action_cache(args):
 
     for domain in domains_list:
         logger.debug("building cache for domain %s",domain)
+
         for test in tests_list:
             logger.debug("building cache for domain %s for test %s",domain, test)
 
-            cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"{domain}"]
-            logger.debug("subprocess: %s",cmd)
-            subprocess.run(cmd, capture_output=False)
+            if not os.path.isfile(f"cache/{domain}_{test}.cache"):
+                cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"{domain}"]
+                logger.debug("subprocess: %s",cmd)
+                subprocess.run(cmd, capture_output=False)
+            else:
+                logger.debug("the %s file already exists, skipping", f"cache/{domain}_{test}.cache")
     return
 
 # function called by the 'run' sub command
@@ -65,6 +69,10 @@ def cli_action_run(args):
     for domain in domains_list:
         for test in tests_list:
             logger.info("run benchmark for %s test %s", domain, test)
+
+            # Emit warning if cache file is not found
+            if not os.path.isfile(f"cache/{domain}_{test}.cache"):
+                logger.warning("cache for domain %s and test %s not found",domain, test)
 
             if test!='ALL':
                 zm_cmd=f"zonemaster-cli --restore=cache/{domain}_{test}.cache --test={test} --json {domain} >> output/{domain}_{test}.out"
