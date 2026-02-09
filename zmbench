@@ -81,11 +81,16 @@ def cli_action_run(args):
 
             hyper_output_file=f"hyperfine/{domain}_{test}.json"
 
+            if os.path.isfile(hyper_output_file):
+                logger.debug("the %s file already exists, skipping", hyper_output_file)
+            else:
+                cmd=["hyperfine", "--prepare", zm_cmd , zm_cmd, "--export-json", hyper_output_file]
 
-            cmd=["hyperfine", "--prepare", zm_cmd , zm_cmd, "--export-json", hyper_output_file]
+                logger.debug("subprocess: %s",cmd)
+                subprocess.run(cmd)
 
-            logger.debug("subprocess: %s",cmd)
-            subprocess.run(cmd)
+            #TODO: modify hyperfine json output file to add :version,domain, ....
+
     return
 
 # function called by the 'gather' sub command
@@ -102,6 +107,7 @@ def cli_action_gather(args):
         logger.debug("%s %s", domain, test)
 
         data = json.loads(open(f"hyperfine/{file}",'r').read())
+        # TODO: move this data injection to RUN
         result = data['results'][0]
         result['domain'] = domain
         result['test'] = test
