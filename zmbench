@@ -2,16 +2,46 @@
 
 import logging
 import argparse
+import os
 logger = logging.getLogger(__name__)
 
+list_tests = ["ALL", "Address", "Basic", "Connectivity", "Consistency", "DNSSEC", "Delegation", "Nameserver", "Syntax", "Zone"]
+
+def create_directories():
+    dirs = ['cache']
+    dirs += ['cache/'+d for d in list_tests]
+    dirs += ['output']
+    dirs += ['output/'+d for d in list_tests]
+    dirs += ['hyperfine']
+    dirs += ['hyperfine/'+d for d in list_tests]
+
+    logger.debug("list of directories to create: %s",dirs)
+
+    for nd in dirs:
+        # Create the directory
+        try:
+            os.makedirs(nd)
+            logger.info(f"Nested directories '{nd}' created successfully.")
+        except FileExistsError:
+            logger.info(f"One or more directories in '{nd}' already exist.")
+        except PermissionError:
+            logger.error(f"Permission denied: Unable to create '{nd}'.")
+            exit()
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+            exit()
+
+# function called by the 'cache' sub command
 def cli_action_cache(args):
     logger.debug(args)
     return
 
+# function called by the 'run' sub command
 def cli_action_run(args):
     logger.debug(args)
     return
 
+# function called by the 'gather' sub command
 def cli_action_gather(args):
     logger.debug(args)
     return
@@ -48,6 +78,9 @@ if __name__ == '__main__':
     # setup logging
     logging.basicConfig()
     logger.setLevel(args.log_level)
+
+
+    create_directories()
 
     # run cli_action
     args.func(args)
