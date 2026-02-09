@@ -41,7 +41,7 @@ def cli_action_cache(args):
 
     for domain in domains_list:
         logger.debug("building cache for domain %s",domain)
-        for test in list_tests:
+        for test in tests_list:
             logger.debug("building cache for domain %s for test %s",domain, test)
 
             cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"{domain}"]
