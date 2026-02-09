@@ -68,10 +68,8 @@ def cli_action_run(args):
 
             if test!='ALL':
                 zm_cmd=f"zonemaster-cli --restore=cache/{domain}_{test}.cache --test={test} --json {domain} >> output/{domain}_{test}.out"
-                #hyper_output_file=f"output/{domain}[{test}].json"
             else:
                 zm_cmd=f"zonemaster-cli --restore=cache/{domain}_{test}.cache --json {domain} >> output/{domain}_{test}.out"
-                #hyper_output_file=f"hyperfine/{}/{domain}.json"
 
             hyper_output_file=f"hyperfine/{domain}_{test}.json"
 
