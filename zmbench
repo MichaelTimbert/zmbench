@@ -16,7 +16,7 @@ def get_zonemaster_versions():
     l=subprocess.run(['zonemaster-cli','--version'], capture_output=True)
     lines = l.stdout.decode('utf-8').strip().split('\n')
 
-    # Regex pour capturer nom et version
+    # Regex for catching name and version
     pattern = r'(.+?)\s+version\s+(.+)'
 
     result = {}
