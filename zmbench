@@ -10,6 +10,8 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# Hardcoded list of all tests available in zonemaster-cli
+# ALL is a dummy test that run zonemaster-cli without --test option, and thereforce executes all tests at once.
 tests_list = ["ALL", "Address", "Basic", "Connectivity", "Consistency", "DNSSEC", "Delegation", "Nameserver", "Syntax", "Zone"]
 
 def get_zonemaster_versions():
