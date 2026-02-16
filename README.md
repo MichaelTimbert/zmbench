@@ -70,7 +70,8 @@ Each step automatically creates or updates the following directories:
 By default, `zmbench.py` runs the benchmark for **all** available Zonemaster tests:
 `Address`, `Basic`, `Connectivity`, `Consistency`, `DNSSEC`, `Delegation`, `Nameserver`, `Syntax`, and `Zone`.
 
-You can later add options to limit the scope of tests or use predefined profiles.
+You can limit the scope of the benchmark using the `--test` option, which allows you to specify one or more test types to run.
+This option applies to both the `cache` and `run` commands.
 
 ***
 
@@ -78,7 +79,7 @@ You can later add options to limit the scope of tests or use predefined profiles
 
 - [ ] Generate detailed performance reports from `dataframe.json`.
 - [ ] Create an HTML summary dashboard for quick result visualization.
-- [ ] Add an option to specify which tests to run with `zonemaster-cli`.
+- [x] Add an option to specify which tests to run with `zonemaster-cli`.
 - [ ] Implement support for custom benchmark profiles.
 
 

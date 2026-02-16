@@ -64,7 +64,7 @@ def cli_action_cache(args):
     for domain in domains_list:
         logger.debug("building cache for domain %s",domain)
 
-        for test in tests_list:
+        for test in args.test:
             logger.debug("building cache for domain %s for test %s",domain, test)
 
             if os.path.isfile(f"cache/{domain}_{test}.cache"):
@@ -95,7 +95,7 @@ def cli_action_run(args):
         logger.info("\t%s : %s",k,v)
 
     for domain in domains_list:
-        for test in tests_list:
+        for test in args.test:
             logger.info("run benchmark for %s test %s", domain, test)
 
             # Emit warning if cache file is not found
@@ -169,11 +169,13 @@ if __name__ == '__main__':
     # create the parser for the "cache" command
     parser_cache = subparsers.add_parser('cache', help="build cache")
     parser_cache.add_argument('--domain',nargs='?',required=True)
+    parser_cache.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
     parser_cache.set_defaults(func=cli_action_cache)
 
     # create the parser for the "run" command
     parser_run = subparsers.add_parser('run', help="run benchmark")
     parser_run.add_argument('--domain',nargs='?',required=True)
+    parser_run.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
     parser_run.set_defaults(func=cli_action_run)
 
     # create the parser for the "gather" command
