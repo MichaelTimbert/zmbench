@@ -73,6 +73,9 @@ By default, `zmbench.py` runs the benchmark for **all** available Zonemaster tes
 You can limit the scope of the benchmark using the `--test` option, which allows you to specify one or more test types to run.
 This option applies to both the `cache` and `run` commands.
 
+The `--run` option limits the number of benchmarking iterations executed by hyperfine (default is typically 10).
+Reducing this value can speed up testing when you need only approximate results.
+
 ***
 
 ## Future Improvements

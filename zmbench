@@ -113,7 +113,7 @@ def cli_action_run(args):
                 logger.debug("the %s file already exists, skipping", hyper_output_file)
                 continue
             else:
-                cmd=["hyperfine", "--prepare", zm_cmd , zm_cmd, "--export-json", hyper_output_file]
+                cmd=["hyperfine", "--prepare", zm_cmd , "--runs", str(args.run), zm_cmd, "--export-json", hyper_output_file]
 
                 logger.debug("subprocess: %s",cmd)
                 subprocess.run(cmd)
@@ -176,6 +176,7 @@ if __name__ == '__main__':
     parser_run = subparsers.add_parser('run', help="run benchmark")
     parser_run.add_argument('--domain',nargs='?',required=True)
     parser_run.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
+    parser_run.add_argument('--run',nargs='?', default=3, type=int)
     parser_run.set_defaults(func=cli_action_run)
 
     # create the parser for the "gather" command
