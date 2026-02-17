@@ -77,6 +77,9 @@ def cli_action_cache(args):
             else:
                 cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"{domain}"]
 
+            if args.profile is not None:
+                cmd+=["--profile", f"{args.profile}"]
+
             logger.debug("subprocess: %s",cmd)
             subprocess.run(cmd, capture_output=False)
     return
@@ -172,6 +175,7 @@ if __name__ == '__main__':
     parser_cache = subparsers.add_parser('cache', help="build cache")
     parser_cache.add_argument('--domain',nargs='?',required=True)
     parser_cache.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
+    parser_cache.add_argument('--profile',nargs='?')
     parser_cache.set_defaults(func=cli_action_cache)
 
     # create the parser for the "run" command
