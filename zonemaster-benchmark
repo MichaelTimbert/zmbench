@@ -5,12 +5,13 @@ use Getopt::Long;
 use Time::Piece;
 use Zonemaster::Engine;
 use Sys::Hostname;
-use List::Util qw(uniq pairmap);
+use List::Util qw(uniq pairmap min max);
 use Time::HiRes qw(gettimeofday tv_interval);
 use File::Slurp;
 use JSON::PP;
 use Statistics::Basic qw(mean median);
 use Data::Dump 'dump';
+use Data::Dumper;
 
 # Usage:
 #   zonemaster-benchmark example.com
@@ -52,6 +53,8 @@ if (!defined $batch_file && !defined $domain_arg) {
 # Collect domains
 my @domains;
 
+# if there is a batch argument
+# push all domain name inside @domains
 if (defined $batch_file) {
     open my $bfh, '<', $batch_file
       or die "Cannot open batch file '$batch_file': $!\n";
@@ -62,6 +65,7 @@ if (defined $batch_file) {
     }
     close $bfh;
 } else {
+    # otherwise push the only one in argument
     push @domains, $domain_arg;
 }
 
@@ -129,7 +133,7 @@ for my $d (@domains) {
         printf("%f \r",$elapsed);
     
         # without reseting, loading cache after the first one while not work 
-        Zonemaster::Engine->reset();
+        #Zonemaster::Engine->reset(); # alredy done on top
     
         my %times = timing(@results);
         $times{'domain'} = $d;
@@ -151,6 +155,13 @@ for my $d (@domains) {
     print("\n");
 }
 
+foreach my $d (@collected_datas){
+    print $d,"\n"; #hash
+    print \$d,"\n"; #ref to
+
+}
+print Dumper(\@collected_datas);
+
 #TODO: stock other metadata
 # cmd line used 
 if ($opt_output){
@@ -159,8 +170,38 @@ if ($opt_output){
 	close $fh;
 } else {
 	# otherwise print summary on terminal
-	print_summary(@collected_datas);
-	print_summary2(@collected_datas);
+	#print_summary(@collected_datas);
+	#print_summary2(@collected_datas);
+    my %summary;
+
+    for my $i (@collected_datas){
+        print Dumper($i);
+        for my $key (keys %$i){
+            print $key, "=>", $i->{$key},"\n";
+            push @{$summary{$key}}, $i->{$key};
+        }
+    }
+
+    print "final results", %summary,"\n";
+
+    print Dumper(\%summary);
+
+    # cleanup summary by removing : date, VersionEngine, hostname, domain
+    delete $summary{date};
+    delete $summary{VersionEngine};
+    delete $summary{hostname};
+    delete $summary{domain};
+
+    print "test\t\tmin\tmax\tmean\n";
+    while ( my ($key, $values) = each %summary){
+        my $min = min(@$values);
+        my $max = max(@$values);
+        my $mean = mean($values);
+        my $median = median($values);
+
+        #print $key,"\t","?","\t","?","\t",,"\t","?",$mean,"\n";
+        printf("%s\t\t%f\t%f\t%f\t%f\n",$key,$min,$max,$mean,$median);
+    }
 }
 
 #=============================================================================
@@ -196,6 +237,8 @@ sub time_testcase {
         return $end->timestamp - $start->timestamp;
 }
 
+# take zonemaster's log and return an hash table 
+# with test_case as key and times as value
 sub timing {
     my (@entries) = @_;
     my @list_testcase = list_testcases(@entries);
