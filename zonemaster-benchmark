@@ -1,0 +1,273 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long;
+use Time::Piece;
+use Zonemaster::Engine;
+use Sys::Hostname;
+use List::Util qw(uniq pairmap);
+use Time::HiRes qw(gettimeofday tv_interval);
+use File::Slurp;
+use JSON::PP;
+use Statistics::Basic qw(mean median);
+use Data::Dump 'dump';
+
+# Usage:
+#   zonemaster-benchmark example.com
+#   zonemaster-benchmark --batch domains.txt
+#   zonemaster-benchmark example.com
+#   zonemaster-benchmark --batch domains.txt
+#
+# But NOT both a domain and --batch at the same time.
+
+my $batch_file;
+my $ref_file;
+my $use_cache = 0;
+my $cache_dir = "/tmp/";  # DEFAULT CACHE DIRECTORY
+my $profile;
+my $opt_nbruns = 1;
+my $opt_output;
+
+#TODO: add nbrun. if nbrun =0 means juste cache
+GetOptions(
+    'batch=s' => \$batch_file,
+    'cache'   => \$use_cache,
+    'cache_dir=s' => \$cache_dir,
+    'profile=s' => \$profile,
+    'nbruns=i' => \$opt_nbruns,
+    'out=s' => \$opt_output
+) or die "Usage: $0 [--ref FILE] (domain | --batch FILE)\n";
+
+# Check mutual exclusivity between domain and --batch
+my $domain_arg = $ARGV[0];
+
+if (defined $batch_file && defined $domain_arg) {
+    die "Error: use either a single domain OR --batch FILE, not both.\n";
+}
+
+if (!defined $batch_file && !defined $domain_arg) {
+    die "Error: you must specify either a domain or --batch FILE.\n";
+}
+
+# Collect domains
+my @domains;
+
+if (defined $batch_file) {
+    open my $bfh, '<', $batch_file
+      or die "Cannot open batch file '$batch_file': $!\n";
+    while (my $line = <$bfh>) {
+        chomp $line;
+        next if $line =~ /^\s*$/;
+        push @domains, $line;
+    }
+    close $bfh;
+} else {
+    push @domains, $domain_arg;
+}
+
+# Validate cache_dir if cache is enabled
+if ($use_cache) {
+    unless (-d $cache_dir && -w $cache_dir) {
+        die "Cache directory '$cache_dir' must exist and be writable\n";
+    }
+}
+
+# Validate profile file
+if (defined $profile) {
+    unless (-e $profile && -r $profile){
+        die "Profile file '$profile' must exist and be readable\n";
+    }
+}
+
+my @collected_datas;
+my $domain_count=0;
+
+for my $d (@domains) {
+
+    $domain_count++;
+
+    
+    my $cache_file = "$cache_dir/$d.cache";
+    if ( $use_cache ) {
+        unless (-e $cache_file && -r $cache_file && -s $cache_file) {
+            #if cache file doesnt exist, create it
+            print("$cache_file file does not exist, creating it...\n");
+            Zonemaster::Engine->reset();
+            Zonemaster::Engine->test_zone($d);
+            Zonemaster::Engine->save_cache($cache_file);
+        }
+    }
+
+    
+    for my $run (1..$opt_nbruns){
+        Zonemaster::Engine->reset();
+
+        # Loading cache 
+        if( $use_cache ){
+            #print("load cache file $cache_file\n");
+            Zonemaster::Engine->preload_cache($cache_file);
+        }
+    
+        # Loading profile
+        if (defined $profile) {
+            my $json    = read_file( $profile );
+            my $foo     = Zonemaster::Engine::Profile->from_json( $json );
+            my $profile = Zonemaster::Engine::Profile->default;
+            $profile->merge( $foo );
+            Zonemaster::Engine::Profile->effective->merge( $profile ); 
+        }
+    
+        printf("%i/%i: ",$domain_count,scalar(@domains)); 
+        print("benchmarking $d (run $run/$opt_nbruns) : "); 
+        STDOUT->flush();     
+        #printf("hostname: %s\n",hostname());
+        #printf("date: %s\n",[gettimeofday]);
+        	#printf("date: %s\n",localtime->strftime('%m/%d/%Y %H:%M'));
+        my $start = [gettimeofday];
+        my @results = Zonemaster::Engine->test_zone($d);
+        my $elapsed = tv_interval($start);
+        printf("%f \r",$elapsed);
+    
+        # without reseting, loading cache after the first one while not work 
+        Zonemaster::Engine->reset();
+    
+        my %times = timing(@results);
+        $times{'domain'} = $d;
+        $times{'time'} = $elapsed,
+        $times{'hostname'} = hostname(),
+        $times{'date'} = localtime->strftime('%m/%d/%Y %H:%M'),
+        $times{'VersionEngine'} = Zonemaster::Engine->VERSION;
+#        $times{'meta'}={'domain', $d,
+#                        'time', $elapsed,
+#                        'hostname',hostname(),
+#                        'date', localtime->strftime('%m/%d/%Y %H:%M'),
+#                        'VersionEngine', Zonemaster::Engine->VERSION};
+        #open my $fh, ">", "data_out.json";
+        #print $fh encode_json(\%times);
+        #close $fh;
+        push @collected_datas, {%times}
+        #Zonemaster::Engine->save_cache("cache");
+    }
+    print("\n");
+}
+
+#TODO: stock other metadata
+# cmd line used 
+if ($opt_output){
+	open my $fh, ">", $opt_output;
+	print $fh encode_json(\@collected_datas);
+	close $fh;
+} else {
+	# otherwise print summary on terminal
+	print_summary(@collected_datas);
+	print_summary2(@collected_datas);
+}
+
+#=============================================================================
+
+# return the list of module present in a zonemaster results
+sub list_modules {
+        my (@entries) = @_;
+        return uniq sort map { $_->module } @entries;
+}
+
+# return the list of testcases present inside results
+# delete Unspecified
+sub list_testcases{
+        my (@entries) = @_;
+        my @results = uniq sort map { $_->testcase } @entries;
+        @results = grep { $_ ne "Unspecified" } @results;       # HACK
+        return @results
+}
+
+sub time_testcase {
+        my ($entries, $filter_testcase) = @_;
+        my @entries = @$entries;
+        #printf "entries %d\n", scalar(@entries);
+        #printf "filter = %s\n", $filter_testcase;
+        #$filter_testcase //= '';  # Sécurité
+        #my @filtered = map { $_->testcase} @entries;
+        my @filtered = grep { $_->testcase eq $filter_testcase } @entries;
+        #printf scalar(@filtered);
+        my ($start) = grep { $_->tag eq "TEST_CASE_START" } @filtered;
+        my ($end) = grep { $_->tag eq "TEST_CASE_END" } @filtered;
+        #printf "%f\n",$end->timestamp;
+        #printf "%f\n",$start->timestamp;
+        return $end->timestamp - $start->timestamp;
+}
+
+sub timing {
+    my (@entries) = @_;
+    my @list_testcase = list_testcases(@entries);
+    my %times; 
+    foreach my $testcase (@list_testcase) {
+        #printf("%s: %f\n",$testcase, time_testcase(\@entries, $testcase));
+        $times{$testcase} = time_testcase(\@entries, $testcase);
+    }
+    return %times;
+}
+
+sub print_summary {
+	my (@datas) = @_;
+	print @datas;
+
+    my %sum;
+    my %count;
+    
+    for my $row (@datas) {
+        for my $key (keys %{$row}) {
+            my $val = $row->{$key};
+    
+            # Skip non-numeric values (hostname, domain, date, etc.)
+            next unless defined $val;
+            next unless $val =~ /^-?\d+(?:\.\d+)?$/;
+    
+            $sum{$key}   += $val;
+            $count{$key} += 1;
+        }
+    }
+    
+    
+    my %mean;
+    for my $key (keys %sum) {
+        $mean{$key} = $sum{$key} / $count{$key};
+    }
+    
+    # Print means
+    for my $key (sort keys %mean) {
+        printf "%s => %.12f\n", $key, $mean{$key};
+    }
+
+}
+
+sub print_summary2 {
+	my (@datas) = @_;
+	print "summary2 datas= @datas";
+
+    my %reformated_datas;
+
+    #my @result = pairmap { "The key $a has value $b" } @datas;
+    for my $row (@datas) {
+        pairmap { print "toto $a $b\n"} %$row;
+        pairmap { push @{$reformated_datas{$a}}, $b } %$row;
+    }   
+    print %reformated_datas; 
+    foreach my $key (keys %reformated_datas) {
+        my @table = @{reformated_datas{$key}};
+        print "for the key $key the talbe is @table\n";
+        dump @table;
+        printf("%s => %f %f\n",$key,mean(@table),median(@table));
+    }
+
+    for my $row (@datas) {
+    pairmap { push @{$reformated_datas{$a}}, $b } %$row;
+}
+
+foreach my $key (keys %reformated_datas) {
+    my @table = @{$reformated_datas{$key}};    # déréférencer le tableau
+    print "for the key $key the table is @table\n";
+    dump @table;
+    printf "%s => %f %f\n", $key, mean(@table), median(@table);
+}
+    #print @result;
+}
