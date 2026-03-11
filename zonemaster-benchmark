@@ -12,6 +12,7 @@ use JSON::PP;
 use Statistics::Basic qw(mean median);
 use Data::Dump 'dump';
 use Data::Dumper;
+use Text::SimpleTable::AutoWidth;
 
 # Usage:
 #   zonemaster-benchmark example.com
@@ -191,9 +192,16 @@ if ($opt_output){
     delete $summary{VersionEngine};
     delete $summary{hostname};
     delete $summary{domain};
-
+    
+    my $st = Text::SimpleTable::AutoWidth->new();
+    
     print "test\t\tmin\tmax\tmean\n";
-    while ( my ($key, $values) = each %summary){
+
+    $st->captions( [qw(Test Min Max Mean Median)] );
+    
+    #while ( my ($key, $values) = each %summary){
+    foreach my $key (sort keys %summary) {
+        my $values = $summary{$key};
         my $min = min(@$values);
         my $max = max(@$values);
         my $mean = mean($values);
@@ -201,7 +209,10 @@ if ($opt_output){
 
         #print $key,"\t","?","\t","?","\t",,"\t","?",$mean,"\n";
         printf("%s\t\t%f\t%f\t%f\t%f\n",$key,$min,$max,$mean,$median);
+        $st->row( $key,$min,$max,$mean,$median );
     }
+
+    print $st->draw;
 }
 
 #=============================================================================
