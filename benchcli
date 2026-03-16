@@ -2,11 +2,13 @@
 
 import logging
 import argparse
+import pathlib
 import os
 import subprocess
 import json
 import pandas as pd
 import re
+import secrets
 
 logger = logging.getLogger(__name__)
 
@@ -159,40 +161,102 @@ if __name__ == '__main__':
 
     # setup cli parser 
     parser = argparse.ArgumentParser(
-                    prog='zonemaster benchmarking tools',
+                    prog='benchmarking tools for zonemaster and gonemaster',
                     description='',
                     epilog='')
     parser.add_argument("--log-level", "-l", nargs='?',
                     default="WARNING",
                     choices=["CRITICAL","ERROR","WARNING","INFO","DEBUG"])
 
-    subparsers = parser.add_subparsers(required=True)
 
-    # create the parser for the "cache" command
-    parser_cache = subparsers.add_parser('cache', help="build cache")
-    parser_cache.add_argument('--domain',nargs='?',required=True)
-    parser_cache.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
-    parser_cache.set_defaults(func=cli_action_cache)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('domain', nargs='?') 
+    group.add_argument('--batch', nargs='?', type=pathlib.Path)
 
-    # create the parser for the "run" command
-    parser_run = subparsers.add_parser('run', help="run benchmark")
-    parser_run.add_argument('--domain',nargs='?',required=True)
-    parser_run.add_argument('--test',nargs='*', choices=tests_list, default=tests_list)
-    parser_run.add_argument('--run',nargs='?', default=3, type=int)
-    parser_run.set_defaults(func=cli_action_run)
-
-    # create the parser for the "gather" command
-    parser_gather = subparsers.add_parser('gather', help='build dataframe.json')
-    parser_gather.set_defaults(func=cli_action_gather)
+    parser.add_argument('--cache', action='store_true')
+    parser.add_argument('--cache_dir', type=pathlib.Path, default='/tmp')
+    parser.add_argument('--runs', nargs='?', type=int, default=1)
+    parser.add_argument('--output', type=pathlib.Path, required=True) # temporary required until we have a nice summary
+    parser.add_argument('--profile', type=pathlib.Path)
+    parser.add_argument('--bin', nargs='?', default='zonemaster-cli')
 
     args = parser.parse_args()
+    print(args)
+
 
     # setup logging
     logging.basicConfig()
     logger.setLevel(args.log_level)
 
 
-    create_directories()
+    domains_list = []
+    if args.domain:
+        domains_list.append(args.domain)
+    else:
+        domains_list = open(args.batch,'r').readlines()
+        #remove \n to all domains
+        domains_list = [domain.rstrip() for domain in domains_list]
 
-    # run cli_action
-    args.func(args)
+    all_datas = []
+
+    for domain in domains_list:
+
+        # if we are using cache
+        # check if cache exist
+        cache_file = f"{args.cache_dir}/{domain}.cache"
+        if args.cache:
+            if  not (os.path.exists(cache_file)
+                and os.access(cache_file, os.R_OK)
+                and os.path.getsize(cache_file) > 0):
+
+                print(f"{cache_file} file does not exist, creating it ...")
+                cli_cmd = f"{args.bin} --save {cache_file} {domain}"
+                subprocess.run(cli_cmd.split())
+
+        # building command line
+        cli_cmd = f"{args.bin}"
+
+        if args.cache:
+            cli_cmd += " --restore %s/%s.cache"%(args.cache_dir, domain)
+
+        if args.profile:
+            cli_cmd += f" --profile {args.profile}"
+        
+        cli_cmd += f" {domain}"
+        print(cli_cmd)
+
+
+        # create temporary file
+        hyper_output_file="/tmp/tmp%s-%s.hyper"%(secrets.token_hex(4),args.bin)
+
+        #hyper_cmd=["hyperfine", "--prepare", cli_cmd , "--runs", str(args.runs), cli_cmd, "--export-json", hyper_output_file]
+        hyper_cmd=["hyperfine", "--runs", str(args.runs), cli_cmd, "--export-json", hyper_output_file]
+        print(hyper_cmd)
+        subprocess.run(hyper_cmd)
+
+        #read json file 
+        with open(hyper_output_file, 'r') as file:
+            data = json.load(file)
+            data = data['results'][0]
+
+            data['domain'] = domain
+            data['bin'] = args.bin
+            data['cache'] = args.cache
+            data['profile'] = str(args.profile)
+
+            all_datas.append(data)
+            print(all_datas)
+        
+        # delete temporary file
+        os.remove(hyper_output_file)
+
+    #### OUTPUT
+
+    if args.output:
+        with open(args.output,'w') as file:
+            json.dump(all_datas, file)
+        exit()
+
+    # otherwise print summary
+    # TODO : make a nice table
+    print(all_datas)    
