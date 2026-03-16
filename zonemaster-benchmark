@@ -115,10 +115,10 @@ for my $d (@domains) {
         # Loading opt_profile
         if (defined $opt_profile) {
             my $json    = read_file( $opt_profile );
-            my $foo     = Zonemaster::Engine::Profile->from_json( $json );
-            my $opt_profile = Zonemaster::Engine::Profile->default;
-            $opt_profile->merge( $foo );
-            Zonemaster::Engine::Profile->effective->merge( $opt_profile ); 
+            my $loaded_profile     = Zonemaster::Engine::Profile->from_json( $json );
+            my $default_profile = Zonemaster::Engine::Profile->default;
+            $default_profile->merge( $loaded_profile );
+            Zonemaster::Engine::Profile->effective->merge( $default_profile ); 
         }
     
         printf("%i/%i: ",$domain_count,scalar(@domains)); 
