@@ -1,0 +1,69 @@
+[env]
+MISE_INSTALLS_DIR = "{{config_root}}/.mise/installs"
+PERL_CPANM_OPT = "--notest --from https://cpan.metacpan.org/"
+
+[tools]
+go = "latest"
+hyperfine = "latest"
+node = "24"
+perl = "latest"
+
+[tasks.clone]
+description = "clone all zonemaster's repos, with develop branch"
+run = [	"git clone -b develop https://github.com/zonemaster/zonemaster-ldns.git",
+	"git clone -b develop https://github.com/zonemaster/zonemaster-engine.git",
+	"git clone -b develop https://github.com/zonemaster/zonemaster-cli.git",
+	"git clone -b develop https://github.com/zonemaster/zonemaster-backend.git",
+	"git clone -b develop https://github.com/zonemaster/zonemaster-gui.git"
+	]
+
+[tasks.dep]
+description = "install perl dependencies"
+run = [	"cpanm inc::Module::Install Devel::CheckLib ExtUtils::PkgConfig Module::Install::XSUtil", #LDNS build
+	"cpanm MIME::Base32 Test::Differences Test::Fatal Test::NoWarnings Test::Exception", #LDNS test
+	"cpanm inc::Module::Install", #ENGINE build
+	"cpanm File::ShareDir Locale::TextDomain Class::Accessor Net::DNS::ZoneFile Net::IP::XS Text::CSV Readonly File::Slurp Clone Log::Any YAML::XS List::MoreUtils", #ENGINE test
+	"cpanm Email::Valid Mail::SPF List::Compare Test::Pod Module::Find IO::Socket::INET6 Pod::Coverage Locale::PO Sub::Override", #ENGINE install
+	"cpanm JSON::XS JSON::Validator", #CLI test
+	"cpanm Log::Dispatch Starman Daemon::Control Log::Any::Adapter::Dispatch Moose Role::Tiny LWP::UserAgent Class::Method::Modifiers Router::Simple::Declare Parallel::ForkManager Plack::Middleware::ReverseProxy Plack::Builder DBD::SQLite DBI JSON::RPC Config::IniFiles HTML::Entities" #BACKEND install
+	]
+
+[tasks.build]
+dir = "{{cwd}}" # run build task inside the cmd directory
+run = [ "perl Makefile.PL",
+        "make",
+        "make all",
+        "make dist"
+        ]
+
+[tasks.buildgui]
+dir = "{{cwd}}"
+run = [ "npm install",
+	"npm run release"
+	]
+
+[tasks.buildall]
+run = [ "cd zonemaster-ldns; mise build",
+        "cd zonemaster-engine; mise build",
+        "cd zonemaster-cli; mise build",
+        "cd zonemaster-backend; mise build",
+	"cd zonemaster-gui; mise buildgui"
+        ]
+
+[tasks.install]
+dir = "{{cwd}}"
+run = "cpanm Zonemaster*.tar.gz"
+
+[tasks.installall]
+run = [ "cd zonemaster-ldns; mise run install",
+        "cd zonemaster-engine; mise run install",
+        "cd zonemaster-cli; mise run install",
+        "cd zonemaster-backend; mise run install",
+        ]
+
+[tasks.dockerbuild]
+run = [ "cd zonemaster-ldns; make docker-build",
+        "cd zonemaster-engine; make docker-build",
+        "cd zonemaster-cli; make docker-build",
+        "cd zonemaster-backend; make docker-build",
+        ]
