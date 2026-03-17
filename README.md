@@ -1,12 +1,26 @@
 # Zonemaster Benchmarking Tools
 
-This tool automates the benchmarking of **Zonemaster**, a DNS zone testing and validation framework.
-It runs predefined tests on a list of domains, measures performance with **hyperfine**, and consolidates results into a single dataset for analysis.
+These tools automates the benchmarking of **Zonemaster**, a DNS zone testing and validation framework.
+It runs predefined tests on a list of domains, measures performance and consolidates results into a single dataset for analysis.
+
+- `benchcli` is a python script to benchmark `zonemaster-cli` and `gonemaster`
+- `zonemaster-benchmark` is a perl script to benchmark `zonemaster-engine`
 
 ***
 
-## Overview
+## Setup
 
+This project use [mise](https://mise.jdx.dev/) to setup the environement.
+
+```
+> mise install         # install : python, go, perl, hyperfine
+> mise dep             # install python and perl dependencies
+> mise zonemaster      # install zonemaster-cli from cpanm
+> mise gonemaster      # install gonemaster
+```
+
+
+## ./benchcli
 This script automates three main operations:
 
 1. **Cache** — Generates cache files for each domain and Zonemaster test type to speed up future runs.
