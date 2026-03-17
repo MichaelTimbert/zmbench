@@ -12,150 +12,47 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
-tests_list = ["ALL", "Address", "Basic", "Connectivity", "Consistency", "DNSSEC", "Delegation", "Nameserver", "Syntax", "Zone"]
-
-def get_zonemaster_versions():
-    l=subprocess.run(['zonemaster-cli','--version'], capture_output=True)
-    lines = l.stdout.decode('utf-8').strip().split('\n')
-
-    # Regex for catching name and version
-    pattern = r'(.+?)\s+version\s+(.+)'
-
-    result = {}
-    for line in lines:
-        if line.strip():  # Skip lignes vides
-            match = re.match(pattern, line.strip())
-            if match:
-                name = match.group(1).strip()
-                version = match.group(2).strip()
-                result[name] = version
-
-    return result
-
-def create_directories():
-    dirs = ['cache']
-    dirs += ['output']
-    dirs += ['hyperfine']
-
-    logger.debug("list of directories to create: %s",dirs)
-
-    for nd in dirs:
-        # Create the directory
-        try:
-            os.makedirs(nd)
-            logger.info(f"Nested directories '{nd}' created successfully.")
-        except FileExistsError:
-            logger.info(f"One or more directories in '{nd}' already exist.")
-        except PermissionError:
-            logger.error(f"Permission denied: Unable to create '{nd}'.")
-            exit()
-        except Exception as e:
-            logger.error(f"An error occurred: {e}")
-            exit()
-
-# function called by the 'cache' sub command
-def cli_action_cache(args):
-    logger.debug(args)
-
-    domains_list = open(args.domain,'r').readlines()
-    #remove \n to all domains
-    domains_list = [domain.rstrip() for domain in domains_list]
-
-    logger.info("domains list loaded: %d domains", len(domains_list))
-
-    for domain in domains_list:
-        logger.debug("building cache for domain %s",domain)
-
-        for test in args.test:
-            logger.debug("building cache for domain %s for test %s",domain, test)
-
-            if os.path.isfile(f"cache/{domain}_{test}.cache"):
-                logger.debug("the %s file already exists, skipping", f"cache/{domain}_{test}.cache")
-                continue
-            if test!='ALL':
-                cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"--test={test}",f"{domain}"]
-            else:
-                cmd = ["zonemaster-cli",f"--save=cache/{domain}_{test}.cache",f"{domain}"]
-
-            logger.debug("subprocess: %s",cmd)
-            subprocess.run(cmd, capture_output=False)
-    return
-
-# function called by the 'run' sub command
-def cli_action_run(args):
-    logger.debug(args)
-
-    domains_list = open(args.domain,'r').readlines()
-    #remove \n to all domains
-    domains_list = [domain.rstrip() for domain in domains_list]
-
-    logger.info("domains list loaded: %d domains", len(domains_list))
-
-    zm_versions = get_zonemaster_versions()
-    logger.info("zonemaster versions:")
-    for k,v in zm_versions.items():
-        logger.info("\t%s : %s",k,v)
-
-    for domain in domains_list:
-        for test in args.test:
-            logger.info("run benchmark for %s test %s", domain, test)
-
-            # Emit warning if cache file is not found
-            if not os.path.isfile(f"cache/{domain}_{test}.cache"):
-                logger.warning("cache for domain %s and test %s not found",domain, test)
-
-            if test!='ALL':
-                zm_cmd=f"zonemaster-cli --restore=cache/{domain}_{test}.cache --test={test} --json {domain} >> output/{domain}_{test}.out"
-                zm_cmd=f"gonemaster --restore=cache/{domain}_{test}.cache --test={test} --json --domain {domain} >> output/{domain}_{test}.out"
-            else:
-                zm_cmd=f"zonemaster-cli --restore=cache/{domain}_{test}.cache --json {domain} >> output/{domain}_{test}.out"
-                zm_cmd=f"gonemaster --restore=cache/{domain}_{test}.cache --json --domain {domain} >> output/{domain}_{test}.out"
-
-            hyper_output_file=f"hyperfine/{domain}_{test}.json"
-
-            if os.path.isfile(hyper_output_file):
-                logger.debug("the %s file already exists, skipping", hyper_output_file)
-                continue
-            else:
-                cmd=["hyperfine", "--prepare", zm_cmd , "--runs", str(args.run), zm_cmd, "--export-json", hyper_output_file]
-
-                logger.debug("subprocess: %s",cmd)
-                subprocess.run(cmd)
-
-            # Inject more data inside the hyperfine output file
-
-            with open(hyper_output_file,'r') as file:
-                data = json.loads(file.read())
-                data['results'][0]['domain'] = domain
-                data['results'][0]['test'] = test
-                # copie versions data
-                for k,v in zm_versions.items():
-                    data['results'][0][k] = v
-
-            with open(hyper_output_file,'w') as file:
-                json.dump(data, file)
 
 
-    return
 
-# function called by the 'gather' sub command
-def cli_action_gather(args):
-    logger.debug(args)
+def generate_report(args):
+    datas = []
+    
+    #load all the data!
+    for dfile in args.report:
+        logger.info("reading data file: %s"%dfile)
+        datas.append(pd.read_json(dfile))
+        logger.info("data shape : %s",datas[-1].shape)
 
-    gathered_data = pd.DataFrame(columns=['command', 'mean', 'stddev', 'median', 'user', 'system', 'min', 'max', 'times', 'exit_codes', 'domain', 'test', 'Zonemaster-CLI', 'Zonemaster-Engine', 'Zonemaster-LDNS', 'NL NetLabs LDNS'])
-    for file in os.listdir("hyperfine"):
-        logger.debug("gather hyperfine result from file %s", file)
+    datas = pd.concat(datas)
 
-        with open(f"hyperfine/{file}",'r') as f:
-            data = json.loads(f.read())
-            result = data['results'][0]
-            gathered_data.loc[len(gathered_data)] = result
+    median_time = datas[['domain','median','bin']].pivot_table(index='domain',columns='bin',values='median')
 
-    with open('dataframe.json', 'w') as json_file:
-        json_string = gathered_data.to_json(orient='records', indent=4)
-        json_file.write(json_string)
+    if datas['bin'].nunique() > 1:
+        median_time['diff'] = median_time.apply(lambda row: row['zonemaster-cli'] - row['gonemaster'], axis=1)
+        median_time['percent'] = median_time.apply(lambda row: 1-(row['gonemaster']/row['zonemaster-cli']), axis=1)
 
-    return
+    resume_stats = pd.DataFrame({   'mean': median_time.mean(), 
+                                    'median': median_time.median(),
+                                    'p90': median_time.quantile(q=0.90),
+                                    'p95': median_time.quantile(q=0.95)})
+
+
+    #html_table = resume_stats.round(3).to_html(index=True, border=1,col_space=100,justify='center')  # options: classes, justify, etc.
+    #html_table = median_time.round(3).to_html()
+
+
+
+    print("number of domains tested :",datas['domain'].nunique())
+    print("number of total row : ",datas.shape[0])
+    print("binarys : ", datas['bin'].unique())
+    print(resume_stats)
+
+
+    if  datas['bin'].nunique() > 1:
+        print("\n# domain with biggest diff\n")
+        print(median_time.nlargest(10,'percent'))
+
 
 if __name__ == '__main__':
 
@@ -172,11 +69,12 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group()
     group.add_argument('domain', nargs='?') 
     group.add_argument('--batch', nargs='?', type=pathlib.Path)
+    group.add_argument('--report', nargs='*', type=pathlib.Path)
 
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--cache_dir', type=pathlib.Path, default='/tmp')
     parser.add_argument('--runs', nargs='?', type=int, default=1)
-    parser.add_argument('--output', type=pathlib.Path, required=True) # temporary required until we have a nice summary
+    parser.add_argument('--output', type=pathlib.Path, required=False) # temporary required until we have a nice summary, :( conflict with --report
     parser.add_argument('--profile', type=pathlib.Path)
     parser.add_argument('--bin', nargs='?', default='zonemaster-cli')
 
@@ -188,6 +86,10 @@ if __name__ == '__main__':
     logging.basicConfig()
     logger.setLevel(args.log_level)
 
+    if args.report:
+        print("reporting")
+        generate_report(args)
+        exit()
 
     domains_list = []
     if args.domain:
@@ -245,7 +147,6 @@ if __name__ == '__main__':
             data['profile'] = str(args.profile)
 
             all_datas.append(data)
-            print(all_datas)
         
         # delete temporary file
         os.remove(hyper_output_file)
