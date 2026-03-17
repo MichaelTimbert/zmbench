@@ -19,6 +19,7 @@ This project use [mise](https://mise.jdx.dev/) to setup the environement.
 > mise gonemaster      # install gonemaster
 ```
 
+***
 
 ## ./benchcli
 This script automates three main operations:
@@ -89,6 +90,26 @@ This option applies to both the `cache` and `run` commands.
 
 The `--run` option limits the number of benchmarking iterations executed by hyperfine (default is typically 10).
 Reducing this value can speed up testing when you need only approximate results.
+
+***
+
+## ./zonemaster-benchmark
+
+```
+❯ ./zonemaster-benchmark zonemaster.se
+❯ ./zonemaster-benchmark zonemaster.se --runs 10
+❯ ./zonemaster-benchmark zonemaster.se --cache --cache_dir ./caches/
+```
+
+options availables:
+
+- `--batch FILE`
+- `--profile PROFILE`
+- `--cache`
+- `--cache_dir DIR`
+- `--runs NB`
+- `--output FILE`
+
 
 ***
 
