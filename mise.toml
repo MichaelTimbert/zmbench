@@ -13,3 +13,7 @@ description = "install dependencies"
 run = [	"pip install -r requirements.txt",
 	"cpanm Statistics::Descriptive Text::SimpleTable::AutoWidth"
 	]
+
+[tasks.gonemaster]
+description = "install gonemaster"
+run = [	"go install codeberg.org/pawal/gonemaster/cmd/gonemaster@latest" ]
