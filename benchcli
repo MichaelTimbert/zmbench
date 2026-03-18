@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_report(datas):
-    print(datas)
+    
     datas = pd.concat(datas)
     
     print("number of domains tested :",datas['domain'].nunique())
@@ -89,13 +89,13 @@ if __name__ == '__main__':
     parser.add_argument('--bin', nargs='?', default='zonemaster-cli')
 
     args = parser.parse_args()
-    print(args)
-
 
     # setup logging
     logging.basicConfig()
     logger.setLevel(args.log_level)
 
+    logger.debug(f"args: {args}")
+    
     # generate report from files
     if args.report:
         datas=[]
@@ -133,6 +133,11 @@ if __name__ == '__main__':
                 cli_cmd = f"{args.bin} --save {cache_file} {domain}"
                 subprocess.run(cli_cmd.split())
 
+        if args.runs == 0:
+            logger.debug(f"runs set to {args.runs}, skip test part for {domain}")
+            continue
+	
+
         # building command line
         cli_cmd = f"{args.bin}"
 
@@ -143,7 +148,7 @@ if __name__ == '__main__':
             cli_cmd += f" --profile {args.profile}"
         
         cli_cmd += f" {domain}"
-        print(cli_cmd)
+        logger.debug(f"cli_cmd: {cli_cmd}")
 
 
         # create temporary file
@@ -151,7 +156,7 @@ if __name__ == '__main__':
 
         #hyper_cmd=["hyperfine", "--prepare", cli_cmd , "--runs", str(args.runs), cli_cmd, "--export-json", hyper_output_file]
         hyper_cmd=["hyperfine", "--runs", str(args.runs), cli_cmd, "--export-json", hyper_output_file]
-        print(hyper_cmd)
+        logger.debug(f"hyper_cmd: {hyper_cmd}")
         subprocess.run(hyper_cmd)
 
         #read json file 
@@ -171,16 +176,14 @@ if __name__ == '__main__':
 
     #### OUTPUT
 
+    # no output if no test run
+    if args.runs <= 0:
+        exit()
+
     if args.output:
         with open(args.output,'w') as file:
             json.dump(all_datas, file)
         exit()
     else:
-        # TODO a corriger !!!!!
-        print("debut")
-        print(all_datas)
-        print("fin")
-        # datas = []
-        # datas.append(pd.read_json(all_datas))
         generate_report([pd.DataFrame.from_dict(all_datas)])
 
