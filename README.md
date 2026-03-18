@@ -23,9 +23,8 @@ This project use [mise](https://mise.jdx.dev/) to setup the environement.
 
 ## ./benchcli usage
 
-time 
-```
-❯ ./benchcli zonemaster.se
+```shell
+❯ ./benchcli zonemaster.se --runs 3
 ```
 
 options availables:
@@ -45,7 +44,10 @@ options availables:
 
 ### Exemples
 
-Test `zonemaster-cli` on a single domain, 10 times 
+Test `zonemaster-cli` on a single domain, 10 times, using cache file
+```shell
+❯ ./benchcli --runs 10 --cahe afnic.fr
+```
 
 Test gonemaster on a list of domain in `domains.txt` with 3 runs by domain and write the output data in `report.json`
 ```
@@ -67,14 +69,12 @@ Full test of DNSSEC testcase of zonemaster with caches
 ❯ ./benchcli --report dnssec-report.json
 ```
 
-
-This script automates three main operations:
-
-1. **Cache** — Generates cache files for each domain and Zonemaster test type to speed up future runs.
-2. **Run** — Executes benchmarks using `hyperfine` for each domain and test, exporting JSON output enriched with Zonemaster version details.
-3. **Gather** — Collects and merges all benchmark results into a single `dataframe.json` file ready for statistical or graphical analysis.
-
-The goal is to make performance comparisons between different Zonemaster versions and modules easy and repeatable.
+Compare `zonemaster-cli` and `gonemaster` performance over a set of domain
+```shell
+❯ ./benchcli --batch domain.txt --output zonemaster-results.json
+❯ ./benchcli --batch domain.txt --bin gonemaster --output gonemaster-results.json
+❯ ./benchcli --report zonemaster-results.json gonemaster-results.json
+```
 
 ***
 
@@ -95,27 +95,4 @@ options availables:
 - `--cache_dir DIR`
 - `--runs NB`
 - `--output FILE`
-
-***
-
-### Batch file
-
-Scripts expects a text file (e.g. domains.txt) containing one domain name per line, for example:
-
-```
-zonemaster.net
-internetstiftelsen.se
-afnic.fr
-```
-
-
-***
-
-## Future Improvements
-
-- [ ] Generate detailed performance reports from `dataframe.json`.
-- [ ] Create an HTML summary dashboard for quick result visualization.
-- [x] Add an option to specify which tests to run with `zonemaster-cli`.
-- [ ] Implement support for custom benchmark profiles.
-
 
