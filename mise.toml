@@ -14,6 +14,10 @@ run = [	"pip install -r requirements.txt",
 	"cpanm Statistics::Descriptive Text::SimpleTable::AutoWidth"
 	]
 
+[tasks.zonemaster]
+description = "install zonemaster from cpanm"
+run = [	"cpanm Zonemaster::CLI" ]
+
 [tasks.gonemaster]
 description = "install gonemaster"
 run = [	"go install codeberg.org/pawal/gonemaster/cmd/gonemaster@latest" ]
