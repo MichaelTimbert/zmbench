@@ -46,7 +46,7 @@ options availables:
 
 Test `zonemaster-cli` on a single domain, 10 times, using cache file
 ```shell
-❯ ./benchcli --runs 10 --cahe afnic.fr
+❯ ./benchcli --runs 10 --cache afnic.fr
 ```
 
 Test gonemaster on a list of domain in `domains.txt` with 3 runs by domain and write the output data in `report.json`
